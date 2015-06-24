@@ -28,6 +28,14 @@ import org.opengis.geometry.BoundingBox;
 import org.opengis.geometry.Geometry;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
+import com.vividsolutions.jts.geom.Coordinate;
+import com.vividsolutions.jts.geom.CoordinateList;
+import com.vividsolutions.jts.geom.GeometryFactory;
+import com.vividsolutions.jts.geom.LinearRing;
+import com.vividsolutions.jts.geom.MultiPolygon;
+import com.vividsolutions.jts.geom.Polygon;
+import com.vividsolutions.jts.geom.PrecisionModel;
+
 public class ReadShapeFile
 {
 
@@ -89,7 +97,7 @@ public class ReadShapeFile
       }
       System.out.println("The features are contained within " + bounds);
 
-      System.exit(0);
+      // System.exit(0);
 
       SimpleFeatureCollection collection = featureSource.getFeatures();
       SimpleFeatureIterator iterator = collection.features();
@@ -97,6 +105,7 @@ public class ReadShapeFile
       try
       {
         int line = 0;
+        int noErrors = 0;
         while (iterator.hasNext())
         {
           Feature feature = iterator.next();
@@ -118,9 +127,76 @@ public class ReadShapeFile
                 System.out.println(f.toString());
               }
               System.out.println(prop.getValue());
+              if (prop.getValue() instanceof com.vividsolutions.jts.geom.MultiPolygon)
+              {
+                com.vividsolutions.jts.geom.MultiPolygon mp = (com.vividsolutions.jts.geom.MultiPolygon) prop.getValue();
+                System.out.println("SRID: " + mp.getSRID());
+                System.out.println(mp.getNumPoints());
+                System.out.println(mp.getNumGeometries());
+                System.out.println(mp.getGeometryN(0));
+                System.out.println(mp.getGeometryN(0).getNumGeometries());
+                System.out.println(mp.getGeometryN(0).getCoordinates().length);
+                for (Coordinate coord : mp.getGeometryN(0).getCoordinates())
+                {
+                  // System.out.println(coord);
+                }
+                Polygon[] polygons = new Polygon[mp.getNumGeometries()];
+                GeometryFactory fact = new GeometryFactory();
+                int noPolygons = 0;
+                for (int i=0; i<mp.getNumGeometries(); i++)
+                {
+                  try
+                  {
+                    Coordinate[] coords = mp.getGeometryN(i).getCoordinates();
+                    CoordinateList list = new CoordinateList();
+                    System.out.println("Length of coordinates : " + coords.length);
+                    if (coords.length > 20)
+                    {
+                      int smoothen = (int) Math.round(coords.length * 1.0 / 10);
+                      for (int j=0; j<coords.length; j++)
+                      {
+                        if (j % smoothen == 0)
+                        {
+                          list.add(coords[j], true);
+                        }
+                      }
+                    }
+                    else
+                    {
+                      list = new CoordinateList(coords);
+                    }
+                    list.closeRing();
+                    System.out.println("Number of points in list: " + list.toCoordinateArray().length);
+                    LinearRing linear = fact.createLinearRing(list.toCoordinateArray());
+                    if (linear.isClosed())
+                    {
+                      polygons[i] = new Polygon(linear, null, fact);
+                      noPolygons++;
+                      System.out.println(polygons[i]);
+                    }
+                    else
+                    {
+                      System.err.println("Polygon Not Closed!!!");
+                      System.exit(1);
+                    }
+                  }
+                  catch(Exception e)
+                  {
+                    System.err.println(e.getMessage());
+                    noErrors++;
+                  }
+                }
+                if (noPolygons > 0)
+                {
+                  MultiPolygon mp1 = new MultiPolygon(polygons, fact);
+                  System.out.println("New Multiploygon");
+                  System.out.println(mp1);
+                }
+              }
             }
           }
         }
+        System.out.println("Number of errors : " + noErrors);
       }
       finally
       {

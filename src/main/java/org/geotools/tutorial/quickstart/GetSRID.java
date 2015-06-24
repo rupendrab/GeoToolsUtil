@@ -13,6 +13,42 @@ import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
 public class GetSRID
 {
+  public static int getSRID(String shapeFileName)
+  {
+    File file = new File(shapeFileName);
+
+    try
+    {
+      Map<String, URL> connect = new HashMap<String, URL>();
+      connect.put("url", file.toURI().toURL());
+      FileDataStore store = FileDataStoreFinder.getDataStore(file);
+      SimpleFeatureSource featureSource = store.getFeatureSource();
+      CoordinateReferenceSystem crs = featureSource.getInfo().getCRS();
+      String callURL = "http://prj2epsg.org/search.json?mode=wkt&terms=" + URLEncoder.encode(crs.toString(), "UTF-8");
+
+      URL sridURL = new URL(callURL); 
+      
+      BufferedReader in = new BufferedReader(new InputStreamReader(sridURL.openStream()));
+
+      StringBuilder sb = new StringBuilder(100);
+      String inputLine;
+      while ((inputLine = in.readLine()) != null)
+      {
+        sb.append(inputLine);
+      }
+      in.close();
+      // System.out.println(sb.toString());
+      JSONObject obj = new JSONObject(sb.toString());
+      JSONObject codes = (JSONObject) obj.getJSONArray("codes").get(0);
+      String srid = (String) codes.get("code");
+      return Integer.parseInt(srid);
+    }
+    catch (Throwable e)
+    {
+      return 0;
+    }
+  }
+
   public static void main(String[] args) throws Exception
   {
 
